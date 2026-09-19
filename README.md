@@ -113,16 +113,28 @@ npx vite preview --host --port 5185 --strictPort   # serves dist/ and still prox
 
 Wrap that in whatever keeps services alive on your box (systemd unit, OpenRC service, or a `node:22-slim` container with `restart: unless-stopped`, host networking and this folder mounted). Then scan `http://<that-machine>:5185/` once.
 
-### Packaging as `.ehpk` (private install)
+### Packaging as `.ehpk` (installed app, no server)
 
-A packaged app has no proxy of its own, so bake in where Moonraker is reachable and whitelist that origin in `app.json` (`permissions[0].whitelist`):
+An installed build runs entirely inside the Even app and talks straight to Moonraker: no dev server, no proxy. The catch is an Even Hub rule: a packaged app may only contact origins listed in `app.json` when it was packed. Exact origins only, no wildcards, no IP ranges, nothing the user can add later. So "type your printer's IP into the app" cannot work for an installed build. Two ways around it:
+
+**A. Give the printer a name the build already knows.** The shipped whitelist contains `klipkommander.local`, `mainsailos.local`, `fluiddpi.local`, `klipper.local`, `voron.local`, `printer.local` and `raspberrypi.local`, each on port 80 and 7125. If your printer host already answers to one of these (MainsailOS and FluiddPi do out of the box), enter that name in the phone panel and you are done. Otherwise add an alias on the printer host, no IP involved:
 
 ```sh
-VITE_MOONRAKER=http://<always-on-machine>:5185/mr npx vite build --outDir dist-ehpk
-npx evenhub pack app.json dist-ehpk -o klipkommander.ehpk
+sudo apt install avahi-utils
+# try it:            avahi-publish -a -R klipkommander.local "$(hostname -I | cut -d' ' -f1)"
+# make it permanent: put that line in a systemd unit, or set the host name to one of the names above
 ```
 
-Upload the file in the Even Hub portal (Builds tab), push it to a private beta group that contains only your own account, and install it from the phone app under Me > Beta tester. That is a private build, not a store listing. Untested so far: whether the packaged WebView may call a plain-http LAN address.
+**B. Pack your own build** with your printer's origin in `app.json` (`permissions[0].whitelist`, e.g. `http://192.168.1.50:7125`) and install it through your own Even Hub account:
+
+```sh
+npm run build
+npx evenhub pack app.json dist -o klipkommander.ehpk
+```
+
+Upload the file in the Even Hub portal (Private builds, or a Beta group containing only you) and install it from the phone app. That is a private build, not a store listing.
+
+Either way Moonraker has to accept the app's web origin: if the panel reports a refusal, add the origin it names to `cors_domains` in `moonraker.conf`. Untested so far: whether the packaged WebView allows plain-http LAN requests at all.
 
 ## Why it is not faster
 

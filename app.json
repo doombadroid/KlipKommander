@@ -11,7 +11,21 @@
       "name": "network",
       "desc": "Talks to the Moonraker API of your own printer on your local network.",
       "whitelist": [
-        "http://10.1.24.221:5185"
+        "http://10.1.24.221:5185",
+        "http://klipkommander.local",
+        "http://klipkommander.local:7125",
+        "http://mainsailos.local",
+        "http://mainsailos.local:7125",
+        "http://fluiddpi.local",
+        "http://fluiddpi.local:7125",
+        "http://klipper.local",
+        "http://klipper.local:7125",
+        "http://voron.local",
+        "http://voron.local:7125",
+        "http://printer.local",
+        "http://printer.local:7125",
+        "http://raspberrypi.local",
+        "http://raspberrypi.local:7125"
       ]
     }
   ],

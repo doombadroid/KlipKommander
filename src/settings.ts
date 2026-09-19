@@ -1,5 +1,11 @@
 // Phone-side control panel: where is the printer, and is it reachable?
 import { candidates } from './address'
+import manifest from '../app.json'
+
+// An installed .ehpk can only reach origins listed in app.json at pack time
+// (Even Hub rule: exact origins, no wildcards, nothing added at runtime).
+const allowed: string[] = manifest.permissions.find(permission => permission.name === 'network')?.whitelist ?? []
+const installed = location.protocol !== 'http:' // dev and self-hosted copies are plain http on the LAN
 
 export interface Connection { address: string; apiKey: string }
 export interface ProbeResult { base: string; klippy: string; version: string }
@@ -24,7 +30,11 @@ export async function connect(connection: Connection, fallback: string): Promise
   for (const base of bases) {
     try { return await probe(base, connection.apiKey) } catch (error) { last = error }
   }
-  // fetch() hides the reason for a network failure; these are the usual two.
+  // fetch() hides the reason for a network failure; these are the usual ones.
+  if (last instanceof TypeError && installed && !allowed.includes(new URL(bases[0]).origin)) {
+    throw new Error(`This installed build may only talk to: ${allowed.map(origin => origin.replace('http://', '')).join(', ')}. `
+      + 'Give your printer one of those names on your network (see README), or pack your own build with your address in app.json.')
+  }
   if (last instanceof TypeError) {
     throw new Error(`Could not reach ${bases[0]}. Check the address and that this phone is on the printer's network. `
       + `If the address is right, Moonraker is refusing this page: add ${location.origin} to cors_domains in moonraker.conf.`)
