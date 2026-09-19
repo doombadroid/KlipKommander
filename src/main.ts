@@ -1,8 +1,9 @@
 import { waitForEvenAppBridge, OsEventTypeList, type EvenHubEvent } from '@evenrealities/even_hub_sdk'
 import { Moonraker, MockPrinter, OFFLINE, type Printer } from './moonraker'
 import { Display } from './display'
-import { drawFrame, loadFonts, tiles } from './cockpit'
-import { back, clampCursor, scroll, tap, text, type Data, type Screen } from './ui'
+import { drawDashboard, loadFonts, tiles } from './cockpit'
+import { CONSOLE_ROWS } from './layout'
+import { back, clampCursor, consoleText, scroll, tap, text, type Data, type Screen } from './ui'
 
 // ?mock=1 | ?mock=idle → simulated printer. ?moonraker=http://host:7125 → direct
 // (needs the page origin allowed by Moonraker CORS). Default: Vite proxy at /mr.
@@ -37,6 +38,7 @@ let exitPending = false
 let poll: ReturnType<typeof setTimeout> | undefined
 let toastTimer: ReturnType<typeof setTimeout> | undefined
 let lastScroll = -Infinity
+let shownState = ''
 let lastLifecycle: { type: OsEventTypeList; time: number } | undefined
 let queue = Promise.resolve()
 let unsubscribe = () => {}
@@ -44,8 +46,11 @@ let unsubscribe = () => {}
 function render(afterExit = false): Promise<void> {
   clampCursor(screen, data)
   const content = text(screen, data)
+  // A printer state change must show at once; everything else can wait its turn.
+  const urgent = data.snap.state !== shownState
+  shownState = data.snap.state
   return afterExit ? display.restoreAfterExit(content)
-    : display.render(content, () => tiles(drawFrame(screen, data)))
+    : display.render(content, consoleText(screen, data, CONSOLE_ROWS), () => tiles(drawDashboard(data)), urgent)
 }
 
 // One queue serializes every bridge write, including slow image sends.

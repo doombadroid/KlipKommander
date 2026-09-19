@@ -82,10 +82,10 @@ export function itemsFor(screen: Screen, data: Data): Item[] {
   return []
 }
 
-function list(items: Item[], cursor: number, empty: string): string {
+function list(items: Item[], cursor: number, empty: string, rows: number): string {
   if (!items.length) return empty
-  const first = Math.min(Math.max(0, cursor - ROWS + 1), Math.max(0, items.length - ROWS))
-  return items.slice(first, first + ROWS)
+  const first = Math.min(Math.max(0, cursor - rows + 1), Math.max(0, items.length - rows))
+  return items.slice(first, first + rows)
     .map((item, index) => `${first + index === cursor ? '>' : '  '} ${item.label}`).join('\n')
 }
 
@@ -94,7 +94,7 @@ export function clampCursor(screen: Screen, data: Data): void {
   screen.cursor = Math.min(screen.cursor, Math.max(0, itemsFor(screen, data).length - 1))
 }
 
-export function text(screen: Screen, data: Data): Text {
+export function text(screen: Screen, data: Data, rows = ROWS): Text {
   const { snap } = data
   const active = snap.state === 'printing' || snap.state === 'paused'
   const header = snap.state === 'offline' ? 'PRINTER OFFLINE'
@@ -123,11 +123,22 @@ export function text(screen: Screen, data: Data): Text {
         `USED ${Math.round(spool.usedGrams ?? 0)} g`].join('\n')
     footer = '2× BACK'
   } else {
-    body = list(itemsFor(screen, data), screen.cursor, screen.kind === 'jobs' ? 'No gcode files found.' : 'Nothing available.')
+    body = list(itemsFor(screen, data), screen.cursor, screen.kind === 'jobs' ? 'No gcode files found.' : 'Nothing available.', rows)
     if (screen.kind === 'home') footer = '↑↓ SELECT  /  TAP OPEN  /  2× EXIT'
   }
   if (data.toast) footer = data.toast
   return { header, stats, body, footer }
+}
+
+// The cockpit's text console: `rows` lines under the image dashboard. Same
+// content as text(), minus the hint footer (a toast or the confirm prompt
+// takes the last line when there is one).
+export function consoleText(screen: Screen, data: Data, rows: number): string {
+  const words = text(screen, data, rows)
+  const lines = words.body.split('\n').slice(0, rows)
+  if (screen.kind === 'confirm') return [...lines.slice(0, rows - 1), words.footer].join('\n')
+  if (data.toast) lines[rows - 1] = data.toast
+  return Array.from({ length: rows }, (_, index) => lines[index] ?? '').join('\n')
 }
 
 export function scroll(screen: Screen, data: Data, direction: 1 | -1): void {
