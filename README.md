@@ -115,17 +115,7 @@ Wrap that in whatever keeps services alive on your box (systemd unit, OpenRC ser
 
 ### Packaging as `.ehpk` (installed app, no server)
 
-An installed build runs entirely inside the Even app and talks straight to Moonraker: no dev server, no proxy. The catch is an Even Hub rule: a packaged app may only contact origins listed in `app.json` when it was packed. Exact origins only, no wildcards, no IP ranges, nothing the user can add later. So "type your printer's IP into the app" cannot work for an installed build. Two ways around it:
-
-**A. Give the printer a name the build already knows.** The shipped whitelist contains `klipkommander.local`, `mainsailos.local`, `fluiddpi.local`, `klipper.local`, `voron.local`, `printer.local` and `raspberrypi.local`, each on port 80 and 7125. If your printer host already answers to one of these (MainsailOS and FluiddPi do out of the box), enter that name in the phone panel and you are done. Otherwise add an alias on the printer host, no IP involved:
-
-```sh
-sudo apt install avahi-utils
-# try it:            avahi-publish -a -R klipkommander.local "$(hostname -I | cut -d' ' -f1)"
-# make it permanent: put that line in a systemd unit, or set the host name to one of the names above
-```
-
-**B. Pack your own build** with your printer's origin in `app.json` (`permissions[0].whitelist`, e.g. `http://192.168.1.50:7125`) and install it through your own Even Hub account:
+An installed build runs entirely inside the Even app and talks straight to Moonraker: no dev server, no proxy. Open the phone panel, type your printer's address, Save.
 
 ```sh
 npm run build
@@ -134,7 +124,12 @@ npx evenhub pack app.json dist -o klipkommander.ehpk
 
 Upload the file in the Even Hub portal (Private builds, or a Beta group containing only you) and install it from the phone app. That is a private build, not a store listing.
 
-Either way Moonraker has to accept the app's web origin: if the panel reports a refusal, add the origin it names to `cors_domains` in `moonraker.conf`. Untested so far: whether the packaged WebView allows plain-http LAN requests at all.
+**About the network whitelist.** Even's docs say a packaged app may only contact the exact origins listed in `app.json` at pack time (no wildcards, nothing added later), which would rule out typing in your own IP. Measured on 2026-09-18 with a probe build (iPhone, Even app on iOS 18.7, Private build): it is not enforced. `fetch`, `<img>`, `sendBeacon` and WebSocket requests to unlisted LAN origins all reached the server, and Moonraker answered by plain IP. Treat that as today's behaviour, not a promise: it may differ for Beta or Released builds or on Android, and Even can turn it on. If it ever bites, there are two fallbacks that play by the documented rule:
+
+- The shipped whitelist already contains `klipkommander.local`, `mainsailos.local`, `fluiddpi.local`, `klipper.local`, `voron.local`, `printer.local` and `raspberrypi.local` (ports 80 and 7125). Use one of those names in the panel, adding an alias on the printer host if needed: `avahi-publish -a -R klipkommander.local <printer-ip>`. Verified: an installed build resolves `.local` and may use plain http.
+- Or put your printer's origin in `app.json` (`permissions[0].whitelist`) and pack your own build.
+
+CORS: an installed build's web origin is `http://127.0.0.1:<random port>`. Moonraker accepts it when `127.0.0.0/8` is under `trusted_clients` (it is in the stock config). If the panel reports a refusal, that is the line to check. Because the port changes per launch, browser `localStorage` does not survive; settings are stored through the Even app instead.
 
 ## Why it is not faster
 
