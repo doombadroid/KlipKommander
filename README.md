@@ -90,7 +90,7 @@ npx evenhub qr --url http://<that-machine's-LAN-IP>:5184/
 
 Scan the QR code from the Even app's developer / Even Hub section. The app loads the page from your dev server, which has to keep running while you use it.
 
-Status: this path is untested. The author is still waiting on hardware, so everything so far was verified in the simulator. In particular the full-frame tiles assume the documented 288x144 image limit holds on real glasses. Expect rough edges and please report them.
+Status: runs on real glasses with an iPhone, full 288x144 tiles included. Expect rough edges and please report them.
 
 ### 5. Spoolman (optional)
 
@@ -99,6 +99,10 @@ Configure `[spoolman]` in `moonraker.conf` as usual and pick an active spool in 
 ### Packaging as `.ehpk`
 
 `npm run pack` builds one, but a packaged app has no dev-server proxy. It needs a `network` permission entry in `app.json` and the `?moonraker=` direct mode, and mixed-content rules may get in the way. Not done yet.
+
+## Why it is not faster
+
+Measured on real G2 glasses with an iPhone: one image send costs about 125 ms plus about 12 ms per kB of 4-bit frame (a full 288x144 tile is roughly 370 ms), a text update about 45 ms, and the stock firmware always takes a whole image container, one at a time. The cockpit is four such tiles, so a cursor move is about 0.7 s and a screen change about 1.4 s. That is the price of drawing every pixel; routine polls repaint at most every 10 s (`REPAINT_INTERVAL_MS` in `src/display.ts`) so it is only paid when something happens. Two things the simulator will not tell you: real glasses reject base64 image data (send PNG bytes), and the first page must be text-only, with images added by a rebuild.
 
 ## Controls
 
