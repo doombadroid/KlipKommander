@@ -35,7 +35,7 @@ function render(afterExit = false): Promise<void> {
 // One queue serializes every bridge write, including slow image sends.
 function enqueue(work: () => Promise<void>): void {
   queue = queue.then(async () => { if (!stopped) await work() }).catch(error => {
-    console.error('G2 Print:', error)
+    console.error('KlipKommander:', error)
   })
 }
 
@@ -84,7 +84,7 @@ async function confirmAction(): Promise<void> {
   data.busy = true
   enqueue(() => render())
   try {
-    console.info(`G2 Print ACTION: ${action.title} ${action.detail[0] ?? ''}`)
+    console.info(`KlipKommander ACTION: ${action.title} ${action.detail[0] ?? ''}`)
     await action.run(printer)
     toast(action.done)
   } catch (error) {
@@ -190,8 +190,8 @@ await refresh()
 enqueue(async () => {
   await render()
   const app = document.getElementById('app')
-  if (app) app.textContent = `G2 Print — ${mock ? 'MOCK printer' : `Moonraker at ${base}`}. Scroll to select, tap to open, every action asks to confirm.`
-  console.info(`G2 Print ready (${mock ? `mock=${mock}` : base}), state=${data.snap.state}`)
+  if (app) app.textContent = `KlipKommander — ${mock ? 'MOCK printer' : `Moonraker at ${base}`}. Scroll to select, tap to open, every action asks to confirm.`
+  console.info(`KlipKommander ready (${mock ? `mock=${mock}` : base}), state=${data.snap.state}`)
 })
 unsubscribe = bridge.onEvenHubEvent(onEvent)
 schedulePoll()

@@ -30,11 +30,11 @@ export class Display {
         this.startupCalled = true
         const result = await this.bridge.createStartUpPageContainer(new CreateStartUpPageContainer(page))
         this.ready = result === 0
-        if (!this.ready) console.error(`G2 Print startup rejected: ${result}`)
+        if (!this.ready) console.error(`KlipKommander startup rejected: ${result}`)
       }
       if (!this.ready || restore) {
         this.ready = await this.bridge.rebuildPageContainer(new RebuildPageContainer(page))
-        if (!this.ready) throw new Error('G2 Print page rebuild rejected')
+        if (!this.ready) throw new Error('KlipKommander page rebuild rejected')
       }
       this.sentText = new Map(Object.entries(text) as [TextSlot, string][])
       this.sentBar = ['', ''] // A rebuild destroys image contents.
@@ -44,7 +44,7 @@ export class Display {
         const ok = await this.bridge.textContainerUpgrade(new TextContainerUpgrade({
           containerID: TEXT[key].containerID, containerName: TEXT[key].containerName, content: text[key],
         }))
-        if (!ok) throw new Error(`G2 Print text update rejected: ${key}`)
+        if (!ok) throw new Error(`KlipKommander text update rejected: ${key}`)
         this.sentText.set(key, text[key])
       }
     }
@@ -56,7 +56,7 @@ export class Display {
       const result = await this.bridge.updateImageRawData(new ImageRawDataUpdate({
         containerID: BAR[half].containerID, containerName: BAR[half].containerName, imageData: png,
       }))
-      if (!ImageRawDataUpdateResult.isSuccess(result)) throw new Error(`G2 Print bar image rejected: ${result}`)
+      if (!ImageRawDataUpdateResult.isSuccess(result)) throw new Error(`KlipKommander bar image rejected: ${result}`)
       this.sentBar[half] = png
     }
   }
@@ -65,7 +65,7 @@ export class Display {
   // exit. Progress stays readable as a percentage in the stats line.
   async restoreAfterExit(text: Text): Promise<void> {
     this.imagesOk = false
-    console.warn('G2 Print: exit cancelled; progress bar disabled until next launch (host image-channel limitation).')
+    console.warn('KlipKommander: exit cancelled; progress bar disabled until next launch (host image-channel limitation).')
     await this.render(text, 0, false, true)
   }
 }

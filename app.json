@@ -1,7 +1,7 @@
 {
-  "package_id": "com.timb.g2print",
+  "package_id": "com.timb.klipkommander",
   "edition": "202601",
-  "name": "G2 Print",
+  "name": "KlipKommander",
   "version": "0.1.0",
   "min_app_version": "2.0.0",
   "min_sdk_version": "0.0.10",
