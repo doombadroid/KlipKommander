@@ -1,6 +1,9 @@
 // Phone-side control panel: where is the printer, and is it reachable?
 import { candidates } from './address'
 
+export interface Connection { address: string; apiKey: string }
+export interface ProbeResult { base: string; klippy: string; version: string }
+
 const field = <T extends HTMLElement>(id: string) => document.getElementById(id) as T
 
 async function probe(base: string, apiKey: string): Promise<ProbeResult> {
