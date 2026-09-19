@@ -37,15 +37,20 @@ let exitPending = false
 let poll: ReturnType<typeof setTimeout> | undefined
 let toastTimer: ReturnType<typeof setTimeout> | undefined
 let lastScroll = -Infinity
+let shownState = ''
 let lastLifecycle: { type: OsEventTypeList; time: number } | undefined
 let queue = Promise.resolve()
 let unsubscribe = () => {}
 
-function render(afterExit = false): Promise<void> {
+// urgent = repaint now (gestures, toasts); polls pass false and get throttled
+// unless the printer state changed.
+function render(afterExit = false, urgent = true): Promise<void> {
   clampCursor(screen, data)
   const content = text(screen, data)
+  const stateChanged = data.snap.state !== shownState
+  shownState = data.snap.state
   return afterExit ? display.restoreAfterExit(content)
-    : display.render(content, () => tiles(drawFrame(screen, data)))
+    : display.render(content, () => tiles(drawFrame(screen, data)), urgent || stateChanged)
 }
 
 // One queue serializes every bridge write, including slow image sends.
@@ -81,7 +86,7 @@ function schedulePoll(): void {
     if (stopped) return
     if (!background && !exitPending) {
       await refresh()
-      enqueue(() => render())
+      enqueue(() => render(false, false))
     }
     schedulePoll()
   }, 2000)

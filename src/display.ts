@@ -6,6 +6,11 @@ import {
 import { CAPTURE, TEXT, TILES, type TextSlot } from './layout'
 import type { Text } from './ui'
 
+// Poll-driven repaints wait this long after the last one, so a jittering
+// temperature cannot keep the slow image channel busy (~125 ms + ~12 ms/kB per
+// tile on real glasses). Gestures and printer state changes skip the wait.
+const REPAINT_INTERVAL_MS = 10_000
+
 const textBox = (geometry: typeof CAPTURE, content: string, capture: boolean) =>
   new TextContainerProperty({ ...geometry, content, borderWidth: 0, paddingLength: 0, isEventCapture: capture ? 1 : 0 })
 
@@ -16,13 +21,14 @@ export class Display {
   private ready = false
   private sentText = new Map<TextSlot, string>()
   private sentTiles: string[] = []
+  private lastPaint = -Infinity
   private imagesOk = true
 
   constructor(private bridge: EvenAppBridge) {}
 
   // Called only through the serialized queue in main.ts. `tiles` is lazy so
   // the fallback never pays for drawing.
-  async render(text: Text, tiles: () => string[], restore = false): Promise<void> {
+  async render(text: Text, tiles: () => string[], urgent: boolean, restore = false): Promise<void> {
     if (!this.ready || restore) {
       const textObject = [textBox(CAPTURE, ' ', true), ...(this.imagesOk ? []
         : (Object.keys(TEXT) as TextSlot[]).map(key => textBox(TEXT[key], text[key], false)))]
@@ -54,9 +60,12 @@ export class Display {
       return
     }
     // ~100 ms per image send: only tiles whose pixels changed cross the bridge.
+    if (!urgent && this.sentTiles.length && performance.now() - this.lastPaint < REPAINT_INTERVAL_MS) return
+    this.lastPaint = performance.now()
     const next = tiles()
     for (const [index, png] of next.entries()) {
       if (png === this.sentTiles[index]) continue
+      const began = performance.now()
       const result = await this.bridge.updateImageRawData(new ImageRawDataUpdate({
         containerID: TILES[index].containerID, containerName: TILES[index].containerName,
         // Bytes, not the base64 string: real glasses answer sendFailed to base64
@@ -65,6 +74,7 @@ export class Display {
       }))
       if (!ImageRawDataUpdateResult.isSuccess(result)) throw new Error(`KlipKommander tile ${index} rejected: ${result}`)
       this.sentTiles[index] = png
+      if (import.meta.env.DEV) console.info(`tile${index} sent in ${Math.round(performance.now() - began)} ms`)
     }
   }
 
@@ -73,6 +83,6 @@ export class Display {
   async restoreAfterExit(text: Text): Promise<void> {
     this.imagesOk = false
     console.warn('KlipKommander: exit cancelled; text fallback until next launch (host image-channel limitation).')
-    await this.render(text, () => [], true)
+    await this.render(text, () => [], true, true)
   }
 }
