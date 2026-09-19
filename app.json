@@ -1,0 +1,11 @@
+{
+  "package_id": "com.timb.g2print",
+  "edition": "202601",
+  "name": "G2 Print",
+  "version": "0.1.0",
+  "min_app_version": "2.0.0",
+  "min_sdk_version": "0.0.10",
+  "entrypoint": "index.html",
+  "permissions": [],
+  "supported_languages": ["en"]
+}
