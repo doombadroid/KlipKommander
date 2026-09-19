@@ -96,9 +96,27 @@ Status: runs on real glasses with an iPhone, full 288x144 tiles included. Expect
 
 Configure `[spoolman]` in `moonraker.conf` as usual and pick an active spool in Mainsail or Fluidd. The SPOOL screen reads it through Moonraker. Without Spoolman the screen just says so.
 
-### Packaging as `.ehpk`
+### Running it for real (no dev session)
 
-`npm run pack` builds one, but a packaged app has no dev-server proxy. It needs a `network` permission entry in `app.json` and the `?moonraker=` direct mode, and mixed-content rules may get in the way. Not done yet.
+`npx vite` is for development. For everyday use, serve the built app from a machine that is always on (the printer host is ideal):
+
+```sh
+npm run build
+npx vite preview --host --port 5185 --strictPort   # serves dist/ and still proxies /mr to Moonraker
+```
+
+Wrap that in whatever keeps services alive on your box (systemd unit, OpenRC service, or a `node:22-slim` container with `restart: unless-stopped`, host networking and this folder mounted). Then scan `http://<that-machine>:5185/` once.
+
+### Packaging as `.ehpk` (private install)
+
+A packaged app has no proxy of its own, so bake in where Moonraker is reachable and whitelist that origin in `app.json` (`permissions[0].whitelist`):
+
+```sh
+VITE_MOONRAKER=http://<always-on-machine>:5185/mr npx vite build --outDir dist-ehpk
+npx evenhub pack app.json dist-ehpk -o klipkommander.ehpk
+```
+
+Upload the file in the Even Hub portal (Builds tab), push it to a private beta group that contains only your own account, and install it from the phone app under Me > Beta tester. That is a private build, not a store listing. Untested so far: whether the packaged WebView may call a plain-http LAN address.
 
 ## Why it is not faster
 

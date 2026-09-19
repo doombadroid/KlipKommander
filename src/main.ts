@@ -22,7 +22,9 @@ if (import.meta.env.DEV) {
 
 const params = new URLSearchParams(location.search)
 const mock = params.get('mock')
-const base = params.get('moonraker') ?? localStorage.getItem('moonraker') ?? '/mr'
+// A packaged .ehpk has no dev-server proxy: bake an absolute URL in with
+// VITE_MOONRAKER=http://host:port/mr at build time.
+const base = params.get('moonraker') ?? localStorage.getItem('moonraker') ?? import.meta.env.VITE_MOONRAKER ?? '/mr'
 if (params.get('moonraker')) localStorage.setItem('moonraker', base)
 const printer: Printer = mock ? new MockPrinter(mock) : new Moonraker(base.replace(/\/$/, ''))
 
