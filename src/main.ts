@@ -1,6 +1,7 @@
 import { waitForEvenAppBridge, OsEventTypeList, type EvenHubEvent } from '@evenrealities/even_hub_sdk'
 import { Moonraker, MockPrinter, OFFLINE, type Printer } from './moonraker'
 import { Display } from './display'
+import { drawFrame, loadFonts, tiles } from './cockpit'
 import { back, clampCursor, scroll, tap, text, type Data, type Screen } from './ui'
 
 // ?mock=1 | ?mock=idle → simulated printer. ?moonraker=http://host:7125 → direct
@@ -12,6 +13,7 @@ if (params.get('moonraker')) localStorage.setItem('moonraker', base)
 const printer: Printer = mock ? new MockPrinter(mock) : new Moonraker(base.replace(/\/$/, ''))
 
 const bridge = await waitForEvenAppBridge()
+await loadFonts()
 const display = new Display(bridge)
 const data: Data = { snap: OFFLINE, jobs: [], spool: null, macros: [], toast: '', busy: false }
 let screen: Screen = { kind: 'home', cursor: 0 }
@@ -29,7 +31,7 @@ function render(afterExit = false): Promise<void> {
   clampCursor(screen, data)
   const content = text(screen, data)
   return afterExit ? display.restoreAfterExit(content)
-    : display.render(content, data.snap.progress, data.snap.state === 'paused')
+    : display.render(content, () => tiles(drawFrame(screen, data)))
 }
 
 // One queue serializes every bridge write, including slow image sends.

@@ -16,8 +16,8 @@ export interface Data { snap: Snapshot; jobs: Job[]; spool: Spool | null; macros
 export interface Text { header: string; stats: string; body: string; footer: string }
 
 const ROWS = 4
-const clip = (text: string, max: number) => text.length > max ? `${text.slice(0, max - 1)}…` : text
-const jobName = (path: string) => path.replace(/\.gcode$/i, '').split('/').pop() ?? path
+export const clip = (text: string, max: number) => text.length > max ? `${text.slice(0, max - 1)}…` : text
+export const jobName = (path: string) => path.replace(/\.gcode$/i, '').split('/').pop() ?? path
 const temp = (now: number, target: number) => `${Math.round(now)}/${Math.round(target)}°`
 
 export function duration(seconds: number): string {
@@ -25,9 +25,15 @@ export function duration(seconds: number): string {
   return minutes >= 60 ? `${Math.floor(minutes / 60)}h${String(minutes % 60).padStart(2, '0')}m` : `${minutes}m`
 }
 
+// Seconds left, or null while there is not enough progress to extrapolate from.
+export function remainingSeconds(snap: Snapshot): number | null {
+  if (snap.state !== 'printing' || snap.progress < 0.01 || snap.printSeconds < 30) return null
+  return snap.printSeconds / snap.progress - snap.printSeconds
+}
+
 function eta(snap: Snapshot): string {
-  if (snap.state !== 'printing' || snap.progress < 0.01 || snap.printSeconds < 30) return ''
-  return duration(snap.printSeconds / snap.progress - snap.printSeconds)
+  const seconds = remainingSeconds(snap)
+  return seconds == null ? '' : duration(seconds)
 }
 
 const simple = (title: string, script: string, done: string): Action =>
@@ -69,7 +75,7 @@ function jobItems(data: Data): Item[] {
   return data.jobs.map(job => ({ label: clip(jobName(job.path), 44), job }))
 }
 
-function itemsFor(screen: Screen, data: Data): Item[] {
+export function itemsFor(screen: Screen, data: Data): Item[] {
   if (screen.kind === 'home') return homeItems(data)
   if (screen.kind === 'jobs') return jobItems(data)
   if (screen.kind === 'preheat') return preheatItems(data)
