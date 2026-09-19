@@ -2,34 +2,99 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>KlipKommander</title>
     <style>
+      /* Even Realities software design guidelines: TC/BC tokens, 6 px radius,
+         17 px body with tight tracking, 12/16/24 spacing. */
+      :root {
+        --text: #232323; --text-dim: #7B7B7B; --bg: #EEEEEE; --surface: #FFFFFF; --input: rgba(35,35,35,0.08);
+        --highlight: #232323; --on-highlight: #FFFFFF; --positive: #4BB956; --negative: #FF453A; --border: #E4E4E4;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --text: #FFFFFF; --text-dim: #8A8A8A; --bg: #111111; --surface: #1A1A1A; --input: rgba(255,255,255,0.08);
+          --highlight: #FFFFFF; --on-highlight: #232323; --border: #2A2A2A;
+        }
+        .mark { filter: invert(1); }
+      }
+      * { box-sizing: border-box; }
       html, body {
-        margin: 0;
-        height: 100%;
-        /* ER brand dark-theme surface (#232323) + Neutral-200 text (#E5E5E5). */
-        background: #232323;
-        color: #E5E5E5;
-        font: 14px/1.4 -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-        /* Kill WebView zoom + iOS auto-sizing + rubber-band scroll. */
-        touch-action: manipulation;
-        -webkit-text-size-adjust: 100%;
-        overscroll-behavior: none;
+        margin: 0; min-height: 100%; background: var(--bg); color: var(--text);
+        font: 17px/1.35 "FK Grotesk Neue", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+        letter-spacing: -0.17px; touch-action: manipulation; -webkit-text-size-adjust: 100%;
       }
-      #app {
-        display: flex;
-        height: 100%;
-        align-items: center;
-        justify-content: center;
-        padding: 24px;
-        box-sizing: border-box;
-        text-align: center;
+      main {
+        max-width: 520px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px;
+        padding: calc(24px + env(safe-area-inset-top)) 12px calc(24px + env(safe-area-inset-bottom));
       }
+      header { display: flex; align-items: center; gap: 12px; padding: 0 4px 12px; }
+      .mark { width: 24px; height: 24px; image-rendering: pixelated; }
+      h1 { font-size: 24px; font-weight: 400; letter-spacing: -0.72px; margin: 0; }
+      h2 { font-size: 13px; font-weight: 400; letter-spacing: -0.13px; color: var(--text-dim); margin: 12px 4px 0; }
+      .card { background: var(--surface); border-radius: 6px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+      .row { display: flex; justify-content: space-between; gap: 16px; align-items: baseline; }
+      .row + .row { border-top: 1px solid var(--border); padding-top: 12px; }
+      .row span:last-child { color: var(--text-dim); text-align: right; overflow-wrap: anywhere; }
+      label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; letter-spacing: -0.13px; color: var(--text-dim); }
+      input {
+        height: 36px; width: 100%; border: 0; border-radius: 6px; padding: 0 16px; background: var(--input);
+        color: var(--text); font: inherit; letter-spacing: inherit; outline: none;
+      }
+      input::placeholder { color: var(--text-dim); }
+      input:focus-visible { box-shadow: inset 0 0 0 1px var(--text); }
+      .hint { font-size: 13px; letter-spacing: -0.13px; color: var(--text-dim); margin: -4px 0 0; }
+      .actions { display: flex; gap: 12px; }
+      button {
+        flex: 1; height: 48px; border: 0; border-radius: 6px; font: inherit; letter-spacing: inherit; cursor: pointer;
+        background: var(--highlight); color: var(--on-highlight);
+      }
+      button.secondary { background: var(--input); color: var(--text); }
+      button:disabled { opacity: 0.5; }
+      button:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+      #result { font-size: 13px; letter-spacing: -0.13px; margin: 0; min-height: 18px; color: var(--text-dim); overflow-wrap: anywhere; }
+      #result.ok { color: var(--positive); }
+      #result.bad { color: var(--negative); }
     </style>
   </head>
   <body>
-    <div id="app" role="status">KlipKommander<br>Waiting for glasses…</div>
+    <main>
+      <header>
+        <img class="mark" src="icon/printer-24-black.png" alt="" />
+        <h1>KlipKommander</h1>
+      </header>
+
+      <section class="card" aria-label="Status">
+        <div class="row"><span>Glasses</span><span id="glasses-state">Waiting for glasses…</span></div>
+        <div class="row"><span>Printer</span><span id="printer-state">Not connected yet</span></div>
+      </section>
+
+      <h2>Printer connection</h2>
+      <form class="card" id="settings" autocomplete="off">
+        <label>Printer address
+          <input id="address" name="address" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false"
+            placeholder="http://192.168.1.50:7125" />
+        </label>
+        <p class="hint">Your Moonraker address, or the one you open Mainsail or Fluidd with. Leave empty to use the built-in connection of the server this app came from.</p>
+        <label>API key (optional)
+          <input id="apikey" name="apikey" type="password" autocapitalize="off" autocorrect="off" spellcheck="false" />
+        </label>
+        <p class="hint">Only if this phone is not under trusted_clients in moonraker.conf. Find it in Mainsail or Fluidd under Settings.</p>
+        <div class="actions">
+          <button type="button" class="secondary" id="test">Test</button>
+          <button type="submit" id="save">Save</button>
+        </div>
+        <p id="result" role="status" aria-live="polite"></p>
+      </form>
+
+      <h2>On the glasses</h2>
+      <section class="card">
+        <div class="row"><span>Scroll</span><span>Move the cursor</span></div>
+        <div class="row"><span>Tap</span><span>Open, or confirm yes</span></div>
+        <div class="row"><span>Double tap</span><span>Back, or confirm no</span></div>
+      </section>
+      <p class="hint" style="margin: 4px">Every heater, start, pause and cancel asks first. Keep the printer on your own network: no port forwarding, use a VPN when away.</p>
+    </main>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

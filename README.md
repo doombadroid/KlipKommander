@@ -80,6 +80,12 @@ trusted_clients:
     192.168.1.0/24   # your LAN, nothing wider
 ```
 
+### Phone panel
+
+The page the Even app shows on the phone is a small control panel: connection status, and a form for the printer address (Moonraker, or whatever you open Mainsail or Fluidd with; port 7125 is tried for you) plus an optional Moonraker API key. Test checks the connection, Save stores it through the Even app and switches the glasses over at once. Leave the address empty to keep using the `/mr` proxy of the server the app was loaded from. Pointing it straight at another host means Moonraker must accept this page's origin (`cors_domains`); the panel tells you the exact value when that is the problem.
+
+Icons for the Even Hub listing are in `public/icon/` (24x24, 1-bit, plus black and white on transparent).
+
 ### 4. Put it on the glasses
 
 Your phone and the machine running `npx vite` must be on the same Wi-Fi.
@@ -138,6 +144,7 @@ Measured on real G2 glasses with an iPhone: one image send costs about 125 ms pl
 | `src/ui.ts` | Pure screen state machine: home, jobs, preheat, spool, confirm |
 | `src/cockpit.ts` | Draws the full frame on a canvas and cuts it into four 288x144 image tiles |
 | `src/display.ts` | Sends only the tiles that changed; drops to a plain-text UI if the host image channel wedges |
+| `src/settings.ts`, `src/address.ts` | Phone control panel; address clean-up (`node src/address.test.ts`) |
 | `src/main.ts` | Poll loop, gesture routing, action execution |
 
 ## License

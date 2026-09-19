@@ -1,35 +1,27 @@
 import { waitForEvenAppBridge, OsEventTypeList, type EvenHubEvent } from '@evenrealities/even_hub_sdk'
 import { Moonraker, MockPrinter, OFFLINE, type Printer } from './moonraker'
 import { Display } from './display'
+import { candidates } from './address'
+import { connect, initSettings, showStatus, type Connection } from './settings'
 import { drawFrame, loadFonts, tiles } from './cockpit'
 import { back, clampCursor, scroll, tap, text, type Data, type Screen } from './ui'
 
-// ?mock=1 | ?mock=idle → simulated printer. ?moonraker=http://host:7125 → direct
-// (needs the page origin allowed by Moonraker CORS). Default: Vite proxy at /mr.
-// Dev server only: mirror console output to the vite terminal (see vite.config.ts).
-if (import.meta.env.DEV) {
-  for (const level of ['info', 'warn', 'error'] as const) {
-    const original = console[level].bind(console)
-    console[level] = (...args: unknown[]) => {
-      original(...args)
-      void fetch('/__log', { method: 'POST', body: `${level}: ${args.map(arg => arg instanceof Error ? `${arg.message} ${arg.stack ?? ''}` : String(arg)).join(' ')}` }).catch(() => {})
-    }
-  }
-  addEventListener('error', event => console.error('uncaught', event.message))
-  addEventListener('unhandledrejection', event => console.error('unhandled', event.reason))
-  console.info(`boot ${navigator.userAgent}`)
-}
-
+// ?mock=1 | ?mock=idle → simulated printer. ?moonraker=http://host:7125 → one-off
+// override. Otherwise the address saved in the phone panel; failing that the
+// proxy that served this page (/mr), or VITE_MOONRAKER baked into a packaged build.
 const params = new URLSearchParams(location.search)
 const mock = params.get('mock')
-// A packaged .ehpk has no dev-server proxy: bake an absolute URL in with
-// VITE_MOONRAKER=http://host:port/mr at build time.
-const base = params.get('moonraker') ?? localStorage.getItem('moonraker') ?? import.meta.env.VITE_MOONRAKER ?? '/mr'
-if (params.get('moonraker')) localStorage.setItem('moonraker', base)
-const printer: Printer = mock ? new MockPrinter(mock) : new Moonraker(base.replace(/\/$/, ''))
+const fallback = (import.meta.env.VITE_MOONRAKER ?? '/mr').replace(/\/$/, '')
 
 const bridge = await waitForEvenAppBridge()
 await loadFonts()
+// Saved through the Even app so it survives WebView storage resets.
+const saved: Connection = { address: await bridge.getLocalStorage('address') ?? '', apiKey: await bridge.getLocalStorage('apikey') ?? '' }
+let base = params.get('moonraker')?.replace(/\/$/, '') ?? fallback
+if (!params.get('moonraker') && saved.address) {
+  try { base = (await connect(saved, fallback)).base } catch { base = candidates(saved.address)[0] ?? fallback }
+}
+let printer: Printer = mock ? new MockPrinter(mock) : new Moonraker(base, saved.apiKey)
 const display = new Display(bridge)
 const data: Data = { snap: OFFLINE, jobs: [], spool: null, macros: [], toast: '', busy: false }
 let screen: Screen = { kind: 'home', cursor: 0 }
@@ -80,6 +72,7 @@ async function refresh(): Promise<void> {
   if (screen.kind === 'confirm' && !data.busy && before !== data.snap.state) {
     screen = { kind: 'home', cursor: 0 }
   }
+  showStatus(mock ? `Mock printer · ${data.snap.state}` : `${data.snap.state === 'offline' ? 'Not reachable' : data.snap.state} · ${base}`, 'Connected')
 }
 
 function schedulePoll(): void {
@@ -212,9 +205,19 @@ function onEvent(event: EvenHubEvent): void {
 await refresh()
 enqueue(async () => {
   await render()
-  const app = document.getElementById('app')
-  if (app) app.textContent = `KlipKommander — ${mock ? 'MOCK printer' : `Moonraker at ${base}`}. Scroll to select, tap to open, every action asks to confirm.`
   console.info(`KlipKommander ready (${mock ? `mock=${mock}` : base}), state=${data.snap.state}`)
+})
+initSettings(saved, fallback, async (connection, found) => {
+  await bridge.setLocalStorage('address', connection.address)
+  await bridge.setLocalStorage('apikey', connection.apiKey)
+  if (mock) return
+  // Swap printers live: never carry a menu or an armed confirm over to another machine.
+  base = found
+  printer = new Moonraker(found, connection.apiKey)
+  screen = { kind: 'home', cursor: 0 }
+  data.jobs = []; data.spool = null; data.macros = []
+  await refresh()
+  enqueue(() => render())
 })
 unsubscribe = bridge.onEvenHubEvent(onEvent)
 schedulePoll()

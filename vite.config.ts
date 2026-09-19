@@ -19,6 +19,7 @@ const phoneLog: Plugin = {
 // /mr → Moonraker keeps the page same-origin (no CORS, works from the phone
 // too, since the phone loads this dev server over the LAN).
 export default defineConfig({
+  base: './', // a packaged .ehpk is not served from /
   plugins: [phoneLog],
   server: {
     host: true,

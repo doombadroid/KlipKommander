@@ -50,12 +50,12 @@ export const OFFLINE: Snapshot = {
 }
 
 export class Moonraker implements Printer {
-  constructor(private base: string) {}
+  constructor(private base: string, private apiKey = '') {}
 
   private async call<T>(path: string, method: 'GET' | 'POST' = 'GET', body?: unknown): Promise<T> {
     const response = await fetch(this.base + path, {
       method,
-      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...(this.apiKey ? { 'X-Api-Key': this.apiKey } : {}) },
       body: body ? JSON.stringify(body) : undefined,
       signal: AbortSignal.timeout(method === 'GET' ? 4000 : 15000),
     })
