@@ -3,7 +3,7 @@ import {
   ImageContainerProperty, ImageRawDataUpdate, ImageRawDataUpdateResult,
   TextContainerUpgrade, type EvenAppBridge,
 } from '@evenrealities/even_hub_sdk'
-import { CAPTURE, INFO, TEXT, TILES, type TextSlot } from './layout'
+import { CAPTURE, TEXT, TILES, type TextSlot } from './layout'
 import type { Text } from './ui'
 
 // Poll-driven repaints wait this long after the last one, so a jittering
@@ -14,7 +14,7 @@ const REPAINT_INTERVAL_MS = 10_000
 const textBox = (geometry: typeof CAPTURE, content: string, capture: boolean) =>
   new TextContainerProperty({ ...geometry, content, borderWidth: 0, paddingLength: 0, isEventCapture: capture ? 1 : 0 })
 
-// Cockpit mode: capture container + four image tiles + one info text line pair.
+// Cockpit mode: one invisible capture container + four image tiles.
 // Fallback mode (image channel wedged): the same data as plain text.
 export class Display {
   private startupCalled = false
@@ -22,16 +22,15 @@ export class Display {
   private sentText = new Map<TextSlot, string>()
   private sentTiles: string[] = []
   private lastPaint = -Infinity
-  private sentInfo = ''
   private imagesOk = true
 
   constructor(private bridge: EvenAppBridge) {}
 
   // Called only through the serialized queue in main.ts. `tiles` is lazy so
   // the fallback never pays for drawing.
-  async render(text: Text, info: string, tiles: () => string[], urgent: boolean, restore = false): Promise<void> {
+  async render(text: Text, tiles: () => string[], urgent: boolean, restore = false): Promise<void> {
     if (!this.ready || restore) {
-      const textObject = [textBox(CAPTURE, ' ', true), ...(this.imagesOk ? [textBox(INFO, info, false)]
+      const textObject = [textBox(CAPTURE, ' ', true), ...(this.imagesOk ? []
         : (Object.keys(TEXT) as TextSlot[]).map(key => textBox(TEXT[key], text[key], false)))]
       const imageObject = this.imagesOk ? TILES.map(geometry => new ImageContainerProperty(geometry)) : []
       const page = { containerTotalNum: textObject.length + imageObject.length, textObject, imageObject }
@@ -48,7 +47,6 @@ export class Display {
       if (!this.ready) throw new Error('KlipKommander page rebuild rejected')
       this.sentText = new Map(this.imagesOk ? [] : Object.entries(text) as [TextSlot, string][])
       this.sentTiles = [] // A rebuild destroys image contents.
-      this.sentInfo = info
     }
     if (!this.imagesOk) {
       for (const key of Object.keys(TEXT) as TextSlot[]) {
@@ -62,14 +60,6 @@ export class Display {
       return
     }
     // ~100 ms per image send: only tiles whose pixels changed cross the bridge.
-    // Text first (~45 ms): it never waits behind an image.
-    if (info !== this.sentInfo) {
-      const ok = await this.bridge.textContainerUpgrade(new TextContainerUpgrade({
-        containerID: INFO.containerID, containerName: INFO.containerName, content: info,
-      }))
-      if (!ok) throw new Error('KlipKommander info update rejected')
-      this.sentInfo = info
-    }
     if (!urgent && this.sentTiles.length && performance.now() - this.lastPaint < REPAINT_INTERVAL_MS) return
     this.lastPaint = performance.now()
     const next = tiles()
@@ -84,7 +74,7 @@ export class Display {
       }))
       if (!ImageRawDataUpdateResult.isSuccess(result)) throw new Error(`KlipKommander tile ${index} rejected: ${result}`)
       this.sentTiles[index] = png
-      if (import.meta.env.DEV) console.info(`${TILES[index].containerName} sent in ${Math.round(performance.now() - began)} ms`)
+      if (import.meta.env.DEV) console.info(`tile${index} sent in ${Math.round(performance.now() - began)} ms`)
     }
   }
 
@@ -93,6 +83,6 @@ export class Display {
   async restoreAfterExit(text: Text): Promise<void> {
     this.imagesOk = false
     console.warn('KlipKommander: exit cancelled; text fallback until next launch (host image-channel limitation).')
-    await this.render(text, '', () => [], true, true)
+    await this.render(text, () => [], true, true)
   }
 }

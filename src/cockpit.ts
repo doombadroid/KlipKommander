@@ -1,7 +1,7 @@
-// Cockpit renderer. Draws the top 576x192 of the frame on a canvas and cuts it
-// into the four image tiles of layout.ts. Pure drawing: all state comes from ui.ts.
-import { DRAWN_HEIGHT, LIST_ROWS, TILES, WIDTH } from './layout'
-import { clip, itemsFor, jobName, text, type Data, type Screen } from './ui'
+// Cockpit renderer. Draws the whole 576x288 frame on a canvas and cuts it into
+// the four image tiles. Pure drawing: all state comes from ui.ts.
+import { HEIGHT, TILES, WIDTH } from './layout'
+import { clip, duration, itemsFor, jobName, remainingSeconds, text, type Data, type Screen } from './ui'
 import regular from './fonts/chakra-petch-400.woff2?url'
 import bold from './fonts/chakra-petch-600.woff2?url'
 
@@ -16,6 +16,7 @@ const FACE = '"Chakra Petch", system-ui, sans-serif'
 const NOZZLE_MAX = 300
 const BED_MAX = 120
 const SEGMENTS = 40
+const LIST_ROWS = 5
 
 export async function loadFonts(): Promise<void> {
   const faces = [new FontFace('Chakra Petch', `url(${regular})`, { weight: '400' }),
@@ -44,13 +45,12 @@ function fit(ctx: Ctx, value: string, width: number, style: Style): string {
 
 const clock = (date: Date) => `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
 
-// Top band, y 0-60: corner brackets, state chip, job name, clock, progress bar.
-function band(ctx: Ctx, data: Data, now: Date): void {
+function chrome(ctx: Ctx, data: Data, now: Date): void {
   const { snap } = data
   ctx.strokeStyle = MID
   ctx.lineWidth = 2
-  for (const [x, sx] of [[6, 1], [570, -1]]) {
-    ctx.beginPath(); ctx.moveTo(x + 18 * sx, 6); ctx.lineTo(x, 6); ctx.lineTo(x, 24); ctx.stroke()
+  for (const [x, y, sx, sy] of [[6, 6, 1, 1], [570, 6, -1, 1], [6, 282, 1, -1], [570, 282, -1, -1]]) {
+    ctx.beginPath(); ctx.moveTo(x + 18 * sx, y); ctx.lineTo(x, y); ctx.lineTo(x, y + 18 * sy); ctx.stroke()
   }
 
   const label = snap.state === 'error' ? `KLIPPER ${snap.klippy.toUpperCase()}` : snap.state.toUpperCase()
@@ -74,118 +74,128 @@ function band(ctx: Ctx, data: Data, now: Date): void {
   for (let index = 0; index < SEGMENTS; index++) {
     const x = 16 + index * (width + 3)
     ctx.fillStyle = index < lit ? FG : DIM
-    ctx.fillRect(x, 42, width, 14)
+    ctx.fillRect(x, 46, width, 16)
     // Paused: lit segments go hollow, which reads even at 4-bit depth.
-    if (index < lit && snap.state === 'paused') { ctx.fillStyle = OFF; ctx.fillRect(x + 2, 44, width - 4, 10) }
+    if (index < lit && snap.state === 'paused') { ctx.fillStyle = OFF; ctx.fillRect(x + 2, 48, width - 4, 12) }
   }
 }
 
 function thermometer(ctx: Ctx, name: string, x: number, now: number, target: number, max: number): void {
   ctx.strokeStyle = MID
   ctx.lineWidth = 1
-  ctx.strokeRect(x + 0.5, 94.5, 22, 66)
-  const height = 62 * Math.min(1, Math.max(0, now / max))
+  ctx.strokeRect(x + 0.5, 104.5, 22, 84)
+  const height = 80 * Math.min(1, Math.max(0, now / max))
   ctx.fillStyle = FG
-  ctx.fillRect(x + 3, 158 - height, 17, height)
-  if (target > 0) ctx.fillRect(x - 6, 158 - 62 * Math.min(1, target / max), 34, 2)
-  write(ctx, `${Math.round(now)}°`, x + 11, 88, { size: 15, bold: true, align: 'center' })
-  write(ctx, target > 0 ? `${name} ${Math.round(target)}` : name, x + 11, 178, { size: 12, color: MID, align: 'center' })
+  ctx.fillRect(x + 3, 186 - height, 17, height)
+  if (target > 0) ctx.fillRect(x - 6, 186 - 80 * Math.min(1, target / max), 34, 2)
+  write(ctx, `${Math.round(now)}°`, x + 11, 96, { size: 15, bold: true, align: 'center' })
+  write(ctx, target > 0 ? `${name} ${Math.round(target)}` : name, x + 11, 208, { size: 12, color: MID, align: 'center' })
 }
 
-// Status pane, x 0-288: percent, layer, thermometers.
-function status(ctx: Ctx, data: Data): void {
+function panels(ctx: Ctx, data: Data, now: Date): void {
   const { snap } = data
   ctx.strokeStyle = DIM
   ctx.lineWidth = 1
-  ctx.strokeRect(16.5, 66.5, 263, 121)
-  if (snap.state === 'printing' || snap.state === 'paused') {
-    write(ctx, `${Math.floor(snap.progress * 100)}%`, 26, 134, { size: 56, bold: true })
-    if (snap.layer != null && snap.totalLayers) write(ctx, `LAYER ${snap.layer}/${snap.totalLayers}`, 28, 172, { size: 15, color: MID })
+  for (const [x, width] of [[16, 184], [212, 188], [412, 148]]) ctx.strokeRect(x + 0.5, 76.5, width, 140)
+
+  const active = snap.state === 'printing' || snap.state === 'paused'
+  if (active) {
+    write(ctx, `${Math.floor(snap.progress * 100)}%`, 28, 150, { size: 68, bold: true })
+    if (snap.layer != null && snap.totalLayers) write(ctx, `LAYER ${snap.layer}/${snap.totalLayers}`, 28, 190, { size: 15, color: MID })
   } else {
-    write(ctx, snap.state === 'offline' ? 'N/C' : snap.state === 'complete' ? 'DONE' : 'IDLE', 26, 132, { size: 48, bold: true })
-    write(ctx, snap.state === 'offline' ? 'NO MOONRAKER' : 'NO ACTIVE JOB', 28, 172, { size: 15, color: MID })
+    write(ctx, snap.state === 'offline' ? 'N/C' : snap.state === 'complete' ? 'DONE' : 'IDLE', 28, 146, { size: 52, bold: true })
+    write(ctx, snap.state === 'offline' ? 'NO MOONRAKER' : 'NO ACTIVE JOB', 28, 190, { size: 15, color: MID })
   }
-  thermometer(ctx, 'NOZ', 188, snap.nozzle, snap.nozzleTarget, NOZZLE_MAX)
-  thermometer(ctx, 'BED', 240, snap.bed, snap.bedTarget, BED_MAX)
+
+  const left = remainingSeconds(snap)
+  write(ctx, 'REMAINING', 224, 100, { size: 12, color: MID })
+  write(ctx, left == null ? '--' : duration(left), 224, 144, { size: 40, bold: true })
+  write(ctx, 'DONE AT', 224, 172, { size: 12, color: MID })
+  write(ctx, left == null ? '--:--' : clock(new Date(now.getTime() + left * 1000)), 224, 202, { size: 24 })
+
+  thermometer(ctx, 'NOZ', 436, snap.nozzle, snap.nozzleTarget, NOZZLE_MAX)
+  thermometer(ctx, 'BED', 506, snap.bed, snap.bedTarget, BED_MAX)
 }
 
-// Action pane, x 296-560, y 66-188. Everything a gesture can change is in here,
-// so navigating costs one image send.
-const PANE = { x: 296, y: 66, width: 264, height: 122 }
-
-function grid(ctx: Ctx, labels: string[], cursor: number): void {
-  const width = (PANE.width - 8) / 2
-  const height = (PANE.height - 8) / 2
-  labels.slice(0, 4).forEach((label, index) => {
-    const x = PANE.x + (index % 2) * (width + 8)
-    const y = PANE.y + Math.floor(index / 2) * (height + 8)
+function tabs(ctx: Ctx, labels: string[], cursor: number): void {
+  if (!labels.length) return
+  const width = (544 - (labels.length - 1) * 8) / labels.length
+  labels.forEach((label, index) => {
+    const x = 16 + index * (width + 8)
     if (index === cursor) {
       ctx.fillStyle = FG
-      ctx.fillRect(x, y, width, height)
+      ctx.fillRect(x, 228, width, 30)
     } else {
       ctx.strokeStyle = MID
       ctx.lineWidth = 1
-      ctx.strokeRect(x + 0.5, y + 0.5, width - 1, height - 1)
+      ctx.strokeRect(x + 0.5, 228.5, width - 1, 29)
     }
     const style = { size: 14, bold: true, align: 'center' as const, color: index === cursor ? OFF : FG }
-    write(ctx, fit(ctx, label, width - 10, style), x + width / 2, y + height / 2 + 5, style)
+    write(ctx, fit(ctx, label, width - 10, style), x + width / 2, 249, style)
   })
 }
 
 function listing(ctx: Ctx, labels: string[], cursor: number, empty: string): void {
-  if (!labels.length) { write(ctx, empty, PANE.x + 4, PANE.y + 30, { size: 16, color: MID }); return }
+  if (!labels.length) { write(ctx, empty, 28, 110, { size: 20, color: MID }); return }
   const first = Math.min(Math.max(0, cursor - LIST_ROWS + 1), Math.max(0, labels.length - LIST_ROWS))
   labels.slice(first, first + LIST_ROWS).forEach((label, row) => {
-    const y = PANE.y + row * 31
+    const y = 74 + row * 36
     const selected = first + row === cursor
-    if (selected) { ctx.fillStyle = FG; ctx.fillRect(PANE.x, y, PANE.width, 28) }
-    const style = { size: 16, bold: selected, color: selected ? OFF : FG }
-    write(ctx, fit(ctx, label, PANE.width - 16, style), PANE.x + 8, y + 20, style)
+    if (selected) { ctx.fillStyle = FG; ctx.fillRect(16, y, 544, 32) }
+    const style = { size: 19, bold: selected, color: selected ? OFF : FG }
+    write(ctx, fit(ctx, label, 470, style), 28, y + 23, style)
   })
+  write(ctx, `${cursor + 1}/${labels.length}`, 560, 277, { size: 13, align: 'right', color: MID })
 }
 
-function confirm(ctx: Ctx, lines: string[], busy: boolean): void {
+function modal(ctx: Ctx, lines: string[], busy: boolean): void {
+  ctx.fillStyle = OFF
+  ctx.fillRect(68, 62, 440, 170)
   ctx.strokeStyle = FG
   ctx.lineWidth = 2
-  ctx.strokeRect(PANE.x + 1, PANE.y + 1, PANE.width - 2, PANE.height - 2)
+  ctx.strokeRect(72, 66, 432, 162)
   ctx.lineWidth = 1
-  ctx.strokeRect(PANE.x + 5.5, PANE.y + 5.5, PANE.width - 11, PANE.height - 11)
-  const middle = PANE.x + PANE.width / 2
+  ctx.strokeRect(77.5, 71.5, 421, 151)
   const [title = '', ...detail] = lines
-  write(ctx, fit(ctx, title, PANE.width - 28, { size: 20, bold: true }), middle, PANE.y + 32, { size: 20, bold: true, align: 'center' })
+  write(ctx, fit(ctx, title, 400, { size: 28, bold: true }), 288, 108, { size: 28, bold: true, align: 'center' })
   detail.slice(0, 2).forEach((line, index) =>
-    write(ctx, fit(ctx, line, PANE.width - 28, { size: 14 }), middle, PANE.y + 53 + index * 17, { size: 14, color: MID, align: 'center' }))
-  if (busy) { write(ctx, 'SENDING…', middle, PANE.y + 106, { size: 17, bold: true, align: 'center' }); return }
+    write(ctx, fit(ctx, line, 400, { size: 16 }), 288, 134 + index * 21, { size: 16, color: MID, align: 'center' }))
+  if (busy) { write(ctx, 'SENDING…', 288, 203, { size: 20, bold: true, align: 'center' }); return }
   ctx.fillStyle = FG
-  ctx.fillRect(PANE.x + 14, PANE.y + 84, 114, 28)
-  write(ctx, 'TAP  YES', PANE.x + 71, PANE.y + 104, { size: 15, bold: true, align: 'center', color: OFF })
+  ctx.fillRect(108, 178, 172, 36)
+  write(ctx, 'TAP  YES', 194, 203, { size: 17, bold: true, align: 'center', color: OFF })
   ctx.strokeStyle = MID
-  ctx.strokeRect(PANE.x + 136.5, PANE.y + 84.5, 113, 27)
-  write(ctx, '2×  NO', PANE.x + 193, PANE.y + 104, { size: 15, bold: true, align: 'center' })
+  ctx.strokeRect(296.5, 178.5, 171, 35)
+  write(ctx, '2×  NO', 382, 203, { size: 17, bold: true, align: 'center' })
 }
 
 export function drawFrame(screen: Screen, data: Data, now = new Date()): HTMLCanvasElement {
   const canvas = document.createElement('canvas')
   canvas.width = WIDTH
-  canvas.height = DRAWN_HEIGHT
+  canvas.height = HEIGHT
   const ctx = canvas.getContext('2d')
   if (!ctx) throw new Error('Canvas 2D is unavailable')
   ctx.fillStyle = OFF
-  ctx.fillRect(0, 0, WIDTH, DRAWN_HEIGHT)
+  ctx.fillRect(0, 0, WIDTH, HEIGHT)
 
-  band(ctx, data, now)
-  status(ctx, data)
-  const body = text(screen, data).body.split('\n')
-  if (screen.kind === 'confirm') confirm(ctx, body, data.busy)
-  else if (screen.kind === 'home') grid(ctx, itemsFor(screen, data).map(item => item.label), screen.cursor)
-  else if (screen.kind === 'spool') {
-    const [title = '', ...rest] = body
-    write(ctx, fit(ctx, title, PANE.width, { size: 18, bold: true }), PANE.x, PANE.y + 22, { size: 18, bold: true })
-    rest.forEach((line, index) => write(ctx, fit(ctx, line, PANE.width, { size: 15 }), PANE.x, PANE.y + 50 + index * 24, { size: 15, color: index ? FG : MID }))
-  } else {
-    listing(ctx, itemsFor(screen, data).map(item => item.label), screen.cursor,
-      screen.kind === 'jobs' ? 'No gcode files found.' : 'Nothing available.')
+  const words = text(screen, data)
+  chrome(ctx, data, now)
+  // The confirm modal sits on top of whatever screen asked for it.
+  const under = screen.kind === 'confirm' ? screen.from : screen
+  if (under.kind === 'home') {
+    panels(ctx, data, now)
+    tabs(ctx, itemsFor(under, data).map(item => item.label), under.cursor)
+  } else if (under.kind === 'jobs' || under.kind === 'preheat') {
+    listing(ctx, itemsFor(under, data).map(item => item.label), under.cursor,
+      under.kind === 'jobs' ? 'No gcode files found.' : 'Nothing available.')
+  } else if (under.kind === 'spool') {
+    const [title = '', ...rest] = words.body.split('\n')
+    write(ctx, fit(ctx, title, 520, { size: 30, bold: true }), 28, 116, { size: 30, bold: true })
+    rest.forEach((line, index) => write(ctx, fit(ctx, line, 520, { size: 20 }), 28, 152 + index * 30, { size: 20, color: index ? FG : MID }))
   }
+  if (screen.kind === 'confirm') modal(ctx, words.body.split('\n'), data.busy)
+  else write(ctx, words.footer.replace(/\s+\/\s+/g, '  ·  '), 288, 277, { size: 13, color: data.toast ? FG : MID, align: 'center' })
+  if (screen.kind === 'confirm' && data.toast) write(ctx, data.toast, 288, 277, { size: 13, align: 'center' })
   return canvas
 }
 
