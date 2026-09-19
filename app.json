@@ -2,7 +2,7 @@
   "package_id": "com.timb.klipkommander",
   "edition": "202601",
   "name": "KlipKommander",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "min_app_version": "2.2.10",
   "min_sdk_version": "0.0.13",
   "entrypoint": "index.html",
