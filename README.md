@@ -4,9 +4,15 @@
 
 Run your Klipper printer from Even Realities G2 glasses. Talks to Moonraker, shows the print on the lens, and lets you start, preheat, pause, resume and cancel with the temple touchpad.
 
-![Printing screen](shots/mock-printing.png)
+| | |
+|---|---|
+| ![Printing](shots/printing.png) | ![Confirm](shots/confirm.png) |
+| ![Standby](shots/standby.png) | ![Job list](shots/jobs.png) |
+| ![Preheat](shots/preheat.png) | ![Paused](shots/paused.png) |
 
-- Print state, progress bar, percent, layer, ETA, nozzle and bed temps (2 s poll)
+Simulator captures at the real 576x288. Standby, job list and preheat are a live printer; the print in progress is the built-in mock.
+
+- Cockpit display: segmented progress bar, percent, layer, time left, finish time, nozzle and bed thermometers with target marks (2 s poll)
 - Start any of the 20 newest gcode files already on the printer; the confirm screen shows material, time and grams
 - Preheat: bed 60 / 80 / 100, any `PREHEAT_*` macros it finds in your config, heaters off
 - Pause, resume, cancel
@@ -84,7 +90,7 @@ npx evenhub qr --url http://<that-machine's-LAN-IP>:5184/
 
 Scan the QR code from the Even app's developer / Even Hub section. The app loads the page from your dev server, which has to keep running while you use it.
 
-Status: this path is untested. The author is still waiting on hardware, so everything so far was verified in the simulator. Expect rough edges and please report them.
+Status: this path is untested. The author is still waiting on hardware, so everything so far was verified in the simulator. In particular the full-frame tiles assume the documented 288x144 image limit holds on real glasses. Expect rough edges and please report them.
 
 ### 5. Spoolman (optional)
 
@@ -108,10 +114,10 @@ Configure `[spoolman]` in `moonraker.conf` as usual and pick an active spool in 
 |---|---|
 | `src/moonraker.ts` | `Printer` interface, Moonraker HTTP client, mock printer |
 | `src/ui.ts` | Pure screen state machine: home, jobs, preheat, spool, confirm |
-| `src/display.ts` | Text containers with diffed updates, image fallback |
-| `src/bar.ts` | Progress bar as two image halves (images max out at 288 px wide) |
+| `src/cockpit.ts` | Draws the full frame on a canvas and cuts it into four 288x144 image tiles |
+| `src/display.ts` | Sends only the tiles that changed; drops to a plain-text UI if the host image channel wedges |
 | `src/main.ts` | Poll loop, gesture routing, action execution |
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE). The bundled Chakra Petch font is under the [SIL Open Font License 1.1](https://openfontlicense.org).
