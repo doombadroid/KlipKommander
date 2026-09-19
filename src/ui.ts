@@ -130,6 +130,16 @@ export function text(screen: Screen, data: Data): Text {
   return { header, stats, body, footer }
 }
 
+// Two firmware-text lines under the drawn cockpit: timing, then hint or toast.
+export function infoText(screen: Screen, data: Data, now = new Date()): string {
+  const left = remainingSeconds(data.snap)
+  const hhmm = (date: Date) => `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+  const timing = left == null ? '' : `REMAINING ${duration(left)}   /   DONE AT ${hhmm(new Date(now.getTime() + left * 1000))}`
+  const items = itemsFor(screen, data)
+  const position = 'cursor' in screen && screen.kind !== 'home' && items.length ? `   ${screen.cursor + 1}/${items.length}` : ''
+  return `${timing}\n${text(screen, data).footer}${data.toast ? '' : position}`
+}
+
 export function scroll(screen: Screen, data: Data, direction: 1 | -1): void {
   if (!('cursor' in screen)) return
   const count = itemsFor(screen, data).length

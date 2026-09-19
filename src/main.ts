@@ -2,7 +2,7 @@ import { waitForEvenAppBridge, OsEventTypeList, type EvenHubEvent } from '@evenr
 import { Moonraker, MockPrinter, OFFLINE, type Printer } from './moonraker'
 import { Display } from './display'
 import { drawFrame, loadFonts, tiles } from './cockpit'
-import { back, clampCursor, scroll, tap, text, type Data, type Screen } from './ui'
+import { back, clampCursor, infoText, scroll, tap, text, type Data, type Screen } from './ui'
 
 // ?mock=1 | ?mock=idle → simulated printer. ?moonraker=http://host:7125 → direct
 // (needs the page origin allowed by Moonraker CORS). Default: Vite proxy at /mr.
@@ -50,7 +50,7 @@ function render(afterExit = false, urgent = true): Promise<void> {
   const stateChanged = data.snap.state !== shownState
   shownState = data.snap.state
   return afterExit ? display.restoreAfterExit(content)
-    : display.render(content, () => tiles(drawFrame(screen, data)), urgent || stateChanged)
+    : display.render(content, infoText(screen, data), () => tiles(drawFrame(screen, data)), urgent || stateChanged)
 }
 
 // One queue serializes every bridge write, including slow image sends.

@@ -90,7 +90,7 @@ npx evenhub qr --url http://<that-machine's-LAN-IP>:5184/
 
 Scan the QR code from the Even app's developer / Even Hub section. The app loads the page from your dev server, which has to keep running while you use it.
 
-Status: this path is untested. The author is still waiting on hardware, so everything so far was verified in the simulator. In particular the full-frame tiles assume the documented 288x144 image limit holds on real glasses. Expect rough edges and please report them.
+It has since run on real glasses with an iPhone. Expect rough edges and please report them.
 
 ### 5. Spoolman (optional)
 
@@ -99,6 +99,10 @@ Configure `[spoolman]` in `moonraker.conf` as usual and pick an active spool in 
 ### Packaging as `.ehpk`
 
 `npm run pack` builds one, but a packaged app has no dev-server proxy. It needs a `network` permission entry in `app.json` and the `?moonraker=` direct mode, and mixed-content rules may get in the way. Not done yet.
+
+## Why it is not faster
+
+Measured on real G2 glasses with an iPhone: one image send costs about 125 ms plus about 12 ms per kB of 4-bit frame (a 288x130 tile is roughly 350 ms), a text update about 45 ms, and the stock firmware always takes a whole image container, one at a time. So the layout is cut by how often things change. Everything a gesture can touch lives in one tile, the time-left line is firmware text, and routine polls repaint at most every 10 s (`REPAINT_INTERVAL_MS` in `src/display.ts`). Two things the simulator will not tell you: real glasses reject base64 image data (send PNG bytes), and the first page must be text-only, with images added by a rebuild.
 
 ## Controls
 
@@ -114,8 +118,9 @@ Configure `[spoolman]` in `moonraker.conf` as usual and pick an active spool in 
 |---|---|
 | `src/moonraker.ts` | `Printer` interface, Moonraker HTTP client, mock printer |
 | `src/ui.ts` | Pure screen state machine: home, jobs, preheat, spool, confirm |
-| `src/cockpit.ts` | Draws the full frame on a canvas and cuts it into four 288x144 image tiles |
-| `src/display.ts` | Sends only the tiles that changed; drops to a plain-text UI if the host image channel wedges |
+| `src/cockpit.ts` | Draws the cockpit on a canvas and cuts it into four image tiles: action pane, status pane, two halves of the top band |
+| `src/display.ts` | Sends only the tiles that changed, action pane first; drops to a plain-text UI if the host image channel wedges |
+| `src/layout.ts` | Where every container sits, and why |
 | `src/main.ts` | Poll loop, gesture routing, action execution |
 
 ## License
