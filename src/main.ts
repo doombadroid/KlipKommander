@@ -6,6 +6,20 @@ import { back, clampCursor, scroll, tap, text, type Data, type Screen } from './
 
 // ?mock=1 | ?mock=idle → simulated printer. ?moonraker=http://host:7125 → direct
 // (needs the page origin allowed by Moonraker CORS). Default: Vite proxy at /mr.
+// Dev server only: mirror console output to the vite terminal (see vite.config.ts).
+if (import.meta.env.DEV) {
+  for (const level of ['info', 'warn', 'error'] as const) {
+    const original = console[level].bind(console)
+    console[level] = (...args: unknown[]) => {
+      original(...args)
+      void fetch('/__log', { method: 'POST', body: `${level}: ${args.map(arg => arg instanceof Error ? `${arg.message} ${arg.stack ?? ''}` : String(arg)).join(' ')}` }).catch(() => {})
+    }
+  }
+  addEventListener('error', event => console.error('uncaught', event.message))
+  addEventListener('unhandledrejection', event => console.error('unhandled', event.reason))
+  console.info(`boot ${navigator.userAgent}`)
+}
+
 const params = new URLSearchParams(location.search)
 const mock = params.get('mock')
 const base = params.get('moonraker') ?? localStorage.getItem('moonraker') ?? '/mr'

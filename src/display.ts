@@ -24,21 +24,21 @@ export class Display {
   // the fallback never pays for drawing.
   async render(text: Text, tiles: () => string[], restore = false): Promise<void> {
     if (!this.ready || restore) {
-      const textObject = [textBox(CAPTURE, '', true), ...(this.imagesOk ? []
+      const textObject = [textBox(CAPTURE, ' ', true), ...(this.imagesOk ? []
         : (Object.keys(TEXT) as TextSlot[]).map(key => textBox(TEXT[key], text[key], false)))]
       const imageObject = this.imagesOk ? TILES.map(geometry => new ImageContainerProperty(geometry)) : []
       const page = { containerTotalNum: textObject.length + imageObject.length, textObject, imageObject }
       if (!this.startupCalled) {
         // Latch BEFORE awaiting, even if startup is rejected. Never retry it.
         this.startupCalled = true
-        const result = await this.bridge.createStartUpPageContainer(new CreateStartUpPageContainer(page))
-        this.ready = result === 0
-        if (!this.ready) console.error(`KlipKommander startup rejected: ${result}`)
+        // Sequence verified on real glasses: a text-only startup page, then a
+        // rebuild that brings in the image tiles.
+        const result = await this.bridge.createStartUpPageContainer(new CreateStartUpPageContainer(
+          { containerTotalNum: 1, textObject: [textBox(CAPTURE, ' ', true)], imageObject: [] }))
+        if (result !== 0) console.error(`KlipKommander startup rejected: ${result}`)
       }
-      if (!this.ready || restore) {
-        this.ready = await this.bridge.rebuildPageContainer(new RebuildPageContainer(page))
-        if (!this.ready) throw new Error('KlipKommander page rebuild rejected')
-      }
+      this.ready = await this.bridge.rebuildPageContainer(new RebuildPageContainer(page))
+      if (!this.ready) throw new Error('KlipKommander page rebuild rejected')
       this.sentText = new Map(this.imagesOk ? [] : Object.entries(text) as [TextSlot, string][])
       this.sentTiles = [] // A rebuild destroys image contents.
     }
@@ -58,7 +58,10 @@ export class Display {
     for (const [index, png] of next.entries()) {
       if (png === this.sentTiles[index]) continue
       const result = await this.bridge.updateImageRawData(new ImageRawDataUpdate({
-        containerID: TILES[index].containerID, containerName: TILES[index].containerName, imageData: png,
+        containerID: TILES[index].containerID, containerName: TILES[index].containerName,
+        // Bytes, not the base64 string: real glasses answer sendFailed to base64
+        // (the simulator takes either). The string is still the cheap diff key.
+        imageData: Uint8Array.from(atob(png), char => char.charCodeAt(0)),
       }))
       if (!ImageRawDataUpdateResult.isSuccess(result)) throw new Error(`KlipKommander tile ${index} rejected: ${result}`)
       this.sentTiles[index] = png
