@@ -6,7 +6,7 @@ Run your Klipper printer from your glasses.
 
 ## Description
 
-So some caveats: It's slow. This is a firmware limitation that I hope Even addresses. But I want it pretty.
+So some caveats: It's slow. This is a firmware limitation around image sending that I hope Even addresses. But I want it pretty.
 
 KlipKommander puts your Klipper 3D printer on your G2. It talks to Moonraker, the same API that Mainsail and Fluidd use, over your own Wi-Fi.
 
