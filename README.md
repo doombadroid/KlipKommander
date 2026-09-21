@@ -129,6 +129,8 @@ Upload the file in the Even Hub portal (Private builds, or a Beta group containi
 - The shipped whitelist already contains `klipkommander.local`, `mainsailos.local`, `fluiddpi.local`, `klipper.local`, `voron.local`, `printer.local` and `raspberrypi.local` (ports 80 and 7125). Use one of those names in the panel, adding an alias on the printer host if needed: `avahi-publish -a -R klipkommander.local <printer-ip>`. Verified: an installed build resolves `.local` and may use plain http.
 - Or put your printer's origin in `app.json` (`permissions[0].whitelist`) and pack your own build.
 
+Running inside [Faceclaw](https://github.com/jimrandomh/faceclaw) instead of the Even app (Files > the `.ehpk` > Run app; printer settings are under the app menu > Show phone UI): there the web origin is `faceclaw-ehpk://app`, which Moonraker does not know, so add it under `cors_domains` in `moonraker.conf` and restart Moonraker. Verified with Moonraker's own replies; the panel names this origin when it is the problem.
+
 CORS: an installed build's web origin is `http://127.0.0.1:<random port>`. Moonraker accepts it when `127.0.0.0/8` is under `trusted_clients` (it is in the stock config). If the panel reports a refusal, that is the line to check. Because the port changes per launch, browser `localStorage` does not survive; settings are stored through the Even app instead.
 
 ## Why it is not faster
