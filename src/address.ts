@@ -2,11 +2,12 @@
 // or without scheme, port or UI path) into Moonraker base URLs worth trying.
 // Pure: no DOM, no network. Check: `node src/address.test.ts`.
 
-export function normalise(input: string): string {
+// `scheme` is what an address typed without one gets. Printers on a LAN speak plain http.
+export function normalise(input: string, scheme = 'http:'): string {
   const typed = input.trim()
   if (!typed) return ''
-  const url = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(typed) ? typed : `http://${typed}`)
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new Error('Use an http:// or https:// address')
+  const url = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(typed) ? typed : `${scheme}//${typed}`)
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new Error('Use an http or https address')
   // Mainsail/Fluidd links carry a UI route (/#/console, /dashboard); Moonraker lives at the root.
   const path = url.pathname.replace(/\/+$/, '')
   return url.origin + (/^\/(mr|moonraker|api)(\/|$)/.test(path) ? path : '')
